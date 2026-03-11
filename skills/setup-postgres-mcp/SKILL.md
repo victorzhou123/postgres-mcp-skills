@@ -43,28 +43,16 @@ description: |
 ```bash
 # 原始信息
 用户名：postgres
-密码：Password@1
+密码：pass@1
 主机：192.168.1.100
 端口：5432
 数据库：mydb
 
 # 错误的连接字符串（会失败）
-postgresql://postgres:Password@1@192.168.1.100:5432/mydb
+postgresql://postgres:pass@1@192.168.1.100:5432/mydb
 
 # 正确的连接字符串（@ 编码为 %40）
-postgresql://postgres:Password%401@192.168.1.100:5432/mydb
-```
-
-**快速编码方法**：
-
-```bash
-# 使用 Python 编码密码
-python3 -c "import urllib.parse; print(urllib.parse.quote('Password@1', safe=''))"
-# 输出：Password%401
-
-# 使用 Node.js 编码密码
-node -e "console.log(encodeURIComponent('Password@1'))"
-# 输出：Password%401
+postgresql://postgres:pass%401@192.168.1.100:5432/mydb
 ```
 
 #### 方式一：Docker（推荐）
@@ -76,7 +64,7 @@ Docker 方式最简单，无需配置 Python 环境。
 ```bash
 docker run -i --rm \
   ghcr.io/crystaldba/postgres-mcp:latest \
-  "postgresql://user:password@host:5432/dbname"
+  "postgresql://user:pass@host:5432/dbname"
 ```
 
 **使用 Docker 运行（SSE 模式）**：
@@ -86,11 +74,11 @@ docker run -d -p 8000:8000 \
   ghcr.io/crystaldba/postgres-mcp:latest \
   --transport sse \
   --port 8000 \
-  "postgresql://user:password@host:5432/dbname"
+  "postgresql://user:pass@host:5432/dbname"
 ```
 
 注意：
-- 替换 `user:password@host:5432/dbname` 为实际的数据库连接信息
+- 替换 `user:pass@host:5432/dbname` 为实际的数据库连接信息
 - 如果数据库在本机，host 使用 `host.docker.internal`（Mac/Windows）或 `172.17.0.1`（Linux）
 - 可以添加 `--read-only` 参数启用只读模式
 
@@ -100,8 +88,21 @@ docker run -d -p 8000:8000 \
 
 **安装 uv**：
 
+推荐使用以下任一方法（更安全）：
+
+**方法1：Homebrew（macOS/Linux）**
 ```bash
-curl -sSL https://astral.sh/uv/install.sh | sh
+brew install uv
+```
+
+**方法2：pip（跨平台）**
+```bash
+pip install uv
+```
+
+**方法3：pipx（隔离安装）**
+```bash
+pipx install uv
 ```
 
 **安装 postgres-mcp**：
@@ -120,7 +121,7 @@ uv sync
 **运行服务（stdio 模式）**：
 
 ```bash
-uv run postgres-mcp "postgresql://user:password@host:5432/dbname"
+uv run postgres-mcp "postgresql://user:pass@host:5432/dbname"
 ```
 
 **运行服务（SSE 模式）**：
@@ -129,7 +130,7 @@ uv run postgres-mcp "postgresql://user:password@host:5432/dbname"
 uv run postgres-mcp \
   --transport sse \
   --port 8000 \
-  "postgresql://user:password@host:5432/dbname"
+  "postgresql://user:pass@host:5432/dbname"
 ```
 
 #### 方式三：pipx
@@ -138,7 +139,7 @@ uv run postgres-mcp \
 
 ```bash
 pipx install postgres-mcp
-postgres-mcp "postgresql://user:password@host:5432/dbname"
+postgres-mcp "postgresql://user:pass@host:5432/dbname"
 ```
 
 ### 3. 配置 MCP 连接
@@ -163,7 +164,7 @@ postgres-mcp "postgresql://user:password@host:5432/dbname"
         "-i",
         "--rm",
         "ghcr.io/crystaldba/postgres-mcp:latest",
-        "postgresql://user:password@host.docker.internal:5432/dbname"
+        "postgresql://user:pass@host.docker.internal:5432/dbname"
       ]
     }
   }
@@ -180,7 +181,7 @@ postgres-mcp "postgresql://user:password@host:5432/dbname"
       "args": [
         "run",
         "postgres-mcp",
-        "postgresql://user:password@localhost:5432/dbname"
+        "postgresql://user:pass@localhost:5432/dbname"
       ]
     }
   }
@@ -201,7 +202,7 @@ postgres-mcp "postgresql://user:password@host:5432/dbname"
         "-i",
         "--rm",
         "ghcr.io/crystaldba/postgres-mcp:latest",
-        "postgresql://user:password@host.docker.internal:5432/dbname"
+        "postgresql://user:pass@host.docker.internal:5432/dbname"
       ]
     }
   }
@@ -264,9 +265,9 @@ postgres-mcp --read-only "postgresql://..."
 WARNING  error connecting in 'pool-1': failed to resolve host '1@192.168.22.113'
 ```
 
-**原因**：密码 `Password@1` 中的 `@` 被误认为是主机分隔符
+**原因**：密码 `pass@1` 中的 `@` 被误认为是主机分隔符
 
-**解决**：将密码编码为 `Password%401`
+**解决**：将密码编码为 `pass%401`
 
 ### 错误 2：端口被占用
 
