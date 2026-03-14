@@ -1,419 +1,330 @@
 ---
 name: pg-execute
 description: |
-  PostgreSQL 安全 SQL 执行工具。支持只读模式和访问控制，安全地执行 SQL 查询和命令。
-  当用户需要执行 SQL、查询数据、更新数据、插入数据、删除数据时使用。
+  PostgreSQL safe SQL execution tool. Supports read-only mode and access control for safely executing SQL queries and commands.
+  Use when users need to execute SQL, query data, update data, insert data, or delete data.
 ---
 
-## 功能说明
+## Feature Description
 
-pg-execute 提供安全的 SQL 执行能力，支持只读模式和多层安全控制。
+pg-execute provides safe SQL execution capabilities, supporting read-only mode and multi-layer security controls.
 
-## 执行流程
+## Execution Flow
 
-### 1. 前置检查
+### 1. Pre-check
 
-确认 postgres-mcp MCP 工具可用（参考根 SKILL.md 的前置检查）。
+Confirm postgres-mcp MCP tools are available (refer to pre-check in root SKILL.md).
 
-### 2. 检查执行模式
+### 2. Check Execution Mode
 
-确认 postgres-mcp 的运行模式：
+Confirm postgres-mcp running mode:
 
-- **只读模式（Restricted）** — 只允许 SELECT 查询
-- **完全模式（Unrestricted）** — 允许所有 SQL 操作
+- **Read-Only Mode (Restricted)** — Only allows SELECT queries
+- **Full Mode (Unrestricted)** — Allows all SQL operations
 
-可以通过配置或环境变量确定当前模式。
+Can determine current mode through configuration or environment variables.
 
-### 3. SQL 分类和验证
+### 3. SQL Classification and Validation
 
-根据 SQL 类型进行不同的处理：
+Handle differently based on SQL type:
 
-#### 读操作（SELECT）
+#### Read Operations (SELECT)
 
-**特点**：
-- 不修改数据
-- 只读模式和完全模式都允许
-- 相对安全
+**Characteristics**:
+- Does not modify data
+- Allowed in both read-only and full mode
+- Relatively safe
 
-**验证**：
-- 检查查询是否合法
-- 避免过于复杂的查询（防止资源耗尽）
-- 考虑添加 LIMIT（如果没有）
+**Validation**:
+- Check if query is valid
+- Avoid overly complex queries (prevent resource exhaustion)
+- Consider adding LIMIT (if not present)
 
-**示例**：
+**Examples**:
 ```sql
 SELECT * FROM orders WHERE user_id = 123;
 SELECT COUNT(*) FROM users;
-SELECT u.name, o.total_amount 
-FROM users u 
+SELECT u.name, o.total_amount
+FROM users u
 JOIN orders o ON u.id = o.user_id;
 ```
 
-#### 写操作（INSERT、UPDATE、DELETE）
+#### Write Operations (INSERT, UPDATE, DELETE)
 
-**特点**：
-- 修改数据
-- 只在完全模式下允许
-- 需要用户确认
+**Characteristics**:
+- Modifies data
+- Only allowed in full mode
+- Requires user confirmation
 
-**验证**：
-- 检查是否在只读模式（拒绝执行）
-- 检查是否有 WHERE 条件（避免误操作）
-- 向用户展示将要执行的 SQL 并确认
+**Validation**:
+- Check if in read-only mode (reject execution)
+- Check for WHERE conditions (avoid mistakes)
+- Show SQL to be executed to user and confirm
 
-**示例**：
+**Examples**:
 ```sql
-INSERT INTO orders (user_id, status, total_amount) 
+INSERT INTO orders (user_id, status, total_amount)
 VALUES (123, 'pending', 99.99);
 
-UPDATE orders 
-SET status = 'paid' 
+UPDATE orders
+SET status = 'paid'
 WHERE id = 456;
 
-DELETE FROM orders 
+DELETE FROM orders
 WHERE id = 789 AND status = 'cancelled';
 ```
 
-#### DDL 操作（CREATE、ALTER、DROP）
+#### DDL Operations (CREATE, ALTER, DROP)
 
-**特点**：
-- 修改数据库结构
-- 只在完全模式下允许
-- 需要特别谨慎
+**Characteristics**:
+- Modifies database structure
+- High risk, requires special caution
+- Only allowed in full mode
 
-**验证**：
-- 检查是否在只读模式（拒绝执行）
-- 强制要求用户确认
-- 建议在事务中执行（可回滚）
-- 生产环境建议手动执行
+**Validation**:
+- Check if in read-only mode (reject execution)
+- Strongly recommend user confirmation
+- Warn about potential impact
 
-**示例**：
+**Examples**:
 ```sql
-CREATE INDEX idx_orders_user_id ON orders(user_id);
+CREATE TABLE new_table (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL
+);
 
 ALTER TABLE orders ADD COLUMN notes TEXT;
 
-DROP INDEX idx_old_index;
+DROP TABLE old_table;
 ```
 
-### 4. 安全检查
+### 4. Execute SQL
 
-在执行前进行多层安全检查：
+After validation, execute SQL:
 
-#### SQL 注入防护
+#### Direct Execution
 
-使用参数化查询：
-
-```python
-# ❌ 不安全
-query = f"SELECT * FROM users WHERE id = {user_id}"
-
-# ✅ 安全
-query = "SELECT * FROM users WHERE id = %s"
-params = (user_id,)
-```
-
-#### 危险操作检测
-
-检测并警告危险操作：
+For simple queries, execute directly:
 
 ```sql
--- ⚠️ 危险：无条件删除
-DELETE FROM orders;
-
--- ⚠️ 危险：删除整个表
-DROP TABLE orders;
-
--- ⚠️ 危险：无条件更新
-UPDATE orders SET status = 'cancelled';
+SELECT * FROM orders WHERE user_id = 123 LIMIT 10;
 ```
 
-#### 资源限制
+#### Transaction Execution
 
-- **查询超时** — 设置 statement_timeout 防止长时间运行
-- **结果集限制** — 自动添加 LIMIT 防止返回过多数据
-- **并发控制** — 限制同时执行的查询数量
-
-### 5. 执行 SQL
-
-根据不同类型的 SQL 采用不同的执行策略：
-
-#### SELECT 查询
-
-直接执行并返回结果：
-
-```python
-result = execute_query("SELECT * FROM orders WHERE user_id = %s", (123,))
-```
-
-返回格式：
-```json
-{
-  "columns": ["id", "user_id", "status", "total_amount", "created_at"],
-  "rows": [
-    [1, 123, "pending", 99.99, "2024-01-01 10:00:00"],
-    [2, 123, "paid", 149.99, "2024-01-02 11:00:00"]
-  ],
-  "row_count": 2,
-  "execution_time": 0.05
-}
-```
-
-#### 写操作
-
-在事务中执行，支持回滚：
-
-```python
-try:
-    begin_transaction()
-    result = execute_query("UPDATE orders SET status = %s WHERE id = %s", ("paid", 456))
-    commit_transaction()
-except Exception as e:
-    rollback_transaction()
-    raise e
-```
-
-#### DDL 操作
-
-建议使用 CONCURRENTLY 避免锁表：
+For important operations, execute in transaction:
 
 ```sql
--- 创建索引（不锁表）
-CREATE INDEX CONCURRENTLY idx_orders_user_id ON orders(user_id);
-
--- 删除索引（不锁表）
-DROP INDEX CONCURRENTLY idx_old_index;
+BEGIN;
+UPDATE orders SET status = 'paid' WHERE id = 456;
+-- Check results
+COMMIT;  -- or ROLLBACK;
 ```
 
-### 6. 结果展示
+#### Batch Execution
 
-将执行结果以易读的格式展示给用户：
+For multiple SQL statements, execute in batch:
 
-#### 查询结果
-
-```
-📊 查询结果
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-查询：SELECT * FROM orders WHERE user_id = 123
-
-结果：2 行
-
-| id  | user_id | status  | total_amount | created_at          |
-|-----|---------|---------|--------------|---------------------|
-| 1   | 123     | pending | 99.99        | 2024-01-01 10:00:00 |
-| 2   | 123     | paid    | 149.99       | 2024-01-02 11:00:00 |
-
-执行时间：0.05 秒
+```sql
+BEGIN;
+INSERT INTO orders (user_id, status) VALUES (123, 'pending');
+INSERT INTO order_items (order_id, product_id) VALUES (LASTVAL(), 456);
+COMMIT;
 ```
 
-#### 写操作结果
+### 5. Return Results
+
+Format and return execution results:
+
+#### Query Results
 
 ```
-✅ 执行成功
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Query executed successfully
+Returned 10 rows in 0.05 seconds
 
-SQL：UPDATE orders SET status = 'paid' WHERE id = 456
-
-影响行数：1 行
-执行时间：0.02 秒
+| id  | user_id | status  | total_amount |
+|-----|---------|---------|--------------|
+| 1   | 123     | pending | 99.99        |
+| 2   | 123     | paid    | 149.99       |
+...
 ```
 
-#### 错误信息
+#### Write Operation Results
 
 ```
-❌ 执行失败
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-SQL：SELECT * FROM non_existent_table
-
-错误：relation "non_existent_table" does not exist
-
-建议：检查表名是否正确，或使用 /pg-schema 查看可用的表
+UPDATE executed successfully
+Affected 1 row
+Execution time: 0.02 seconds
 ```
 
-### 7. 事务管理
-
-支持显式事务控制：
+#### Error Messages
 
 ```
-用户：开始一个事务
-
-助手：BEGIN;
-     事务已开始，后续操作将在事务中执行
-     
-用户：更新订单状态
-     UPDATE orders SET status = 'paid' WHERE id = 456
-
-助手：[执行更新]
-     影响 1 行
-     
-用户：提交事务
-
-助手：COMMIT;
-     事务已提交，更改已保存
+Error executing SQL:
+ERROR: column "invalid_column" does not exist
+LINE 1: SELECT invalid_column FROM orders
+               ^
 ```
 
-回滚示例：
+### 6. Security Controls
 
-```
-用户：开始事务
-助手：BEGIN;
+Multiple security control layers:
 
-用户：删除订单
-     DELETE FROM orders WHERE id = 456
-     
-助手：[执行删除]
-     影响 1 行
-     
-用户：等等，我不想删除，回滚
-
-助手：ROLLBACK;
-     事务已回滚，更改已撤销
-```
-
-## 使用示例
-
-**简单查询**：
-```
-用户：查询用户 123 的订单
-
-助手：SELECT * FROM orders WHERE user_id = 123;
-     [执行并展示结果]
-```
-
-**带确认的写操作**：
-```
-用户：把订单 456 的状态改为 paid
-
-助手：将执行以下 SQL：
-     UPDATE orders SET status = 'paid' WHERE id = 456
-     
-     这将修改 1 行数据，是否确认？
-     
-用户：确认
-
-助手：[执行更新]
-     ✅ 更新成功，影响 1 行
-```
-
-**只读模式拒绝**：
-```
-用户：删除订单 789
-
-助手：❌ 当前运行在只读模式，不允许执行写操作
-     
-     如果需要执行写操作，请：
-     1. 重新配置 postgres-mcp 为完全模式
-     2. 或在有写权限的环境中执行
-```
-
-**批量操作**：
-```
-用户：批量更新这些订单的状态
-
-助手：BEGIN;
-     UPDATE orders SET status = 'shipped' WHERE id IN (1, 2, 3);
-     COMMIT;
-     
-     ✅ 更新成功，影响 3 行
-```
-
-## 安全最佳实践
-
-### 1. 使用参数化查询
-
-```python
-# ❌ 不安全
-query = f"SELECT * FROM users WHERE email = '{email}'"
-
-# ✅ 安全
-query = "SELECT * FROM users WHERE email = %s"
-execute_query(query, (email,))
-```
-
-### 2. 最小权限原则
-
-- 只读场景使用只读账户
-- 生产环境避免使用超级用户
-- 按需授予权限
-
-### 3. 审计日志
-
-记录所有执行的 SQL：
-
-```
-[2024-01-01 10:00:00] user=alice query="SELECT * FROM orders" rows=100 time=0.05s
-[2024-01-01 10:01:00] user=bob query="UPDATE orders SET status='paid' WHERE id=456" rows=1 time=0.02s
-```
-
-### 4. 备份和恢复
-
-写操作前建议：
-- 确认有最新备份
-- 在测试环境先验证
-- 使用事务（可回滚）
-
-### 5. 生产环境保护
-
-- 启用只读模式
-- 设置查询超时
-- 限制结果集大小
-- 禁止危险操作（DROP、TRUNCATE）
-
-## 配置选项
-
-### 只读模式
+#### Read-Only Mode
 
 ```bash
-# 启动时指定
+# Enable read-only mode
 postgres-mcp --read-only "postgresql://..."
-
-# 环境变量
-export POSTGRES_MCP_READ_ONLY=true
 ```
 
-### 查询超时
+Only allows SELECT queries, rejects all write operations.
 
-```bash
-# 设置 30 秒超时
-postgres-mcp --query-timeout 30 "postgresql://..."
+#### SQL Validation
 
-# 或在 SQL 中设置
+- **Syntax check** — Ensure SQL syntax is correct
+- **Dangerous operation detection** — Warn about DROP, TRUNCATE, etc.
+- **Injection prevention** — Use parameterized queries to prevent SQL injection
+
+#### User Confirmation
+
+For high-risk operations, must get user confirmation:
+
+```
+User: Delete all cancelled orders
+
+Assistant: Will execute the following SQL:
+         DELETE FROM orders WHERE status = 'cancelled';
+         
+         This will delete approximately 1000 rows.
+         Confirm execution? (yes/no)
+```
+
+#### Transaction Protection
+
+Important operations executed in transactions:
+
+```sql
+BEGIN;
+-- Execute operations
+UPDATE orders SET status = 'paid' WHERE id = 456;
+-- Check results
+SELECT * FROM orders WHERE id = 456;
+-- Confirm correct then commit
+COMMIT;
+```
+
+## Usage Examples
+
+**Simple query**:
+```
+User: Query all pending orders
+Assistant: SELECT * FROM orders WHERE status = 'pending' LIMIT 100;
+```
+
+**Update data**:
+```
+User: Change order 456 status to paid
+Assistant: Will execute:
+         UPDATE orders SET status = 'paid' WHERE id = 456;
+         Confirm? (yes/no)
+         
+User: yes
+Assistant: [Execute SQL]
+         Update successful, affected 1 row
+```
+
+**Batch operations**:
+```
+User: Create new order and add order items
+Assistant: Will execute in transaction:
+         BEGIN;
+         INSERT INTO orders (user_id, status) VALUES (123, 'pending');
+         INSERT INTO order_items (order_id, product_id) 
+         VALUES (LASTVAL(), 456);
+         COMMIT;
+         
+         Confirm? (yes/no)
+```
+
+## Advanced Features
+
+### Parameterized Queries
+
+Use parameterized queries to prevent SQL injection:
+
+```sql
+-- Unsafe
+SELECT * FROM orders WHERE user_id = $user_input;
+
+-- Safe
+PREPARE query AS SELECT * FROM orders WHERE user_id = $1;
+EXECUTE query(123);
+```
+
+### Query Timeout
+
+Set query timeout to prevent long-running queries:
+
+```sql
 SET statement_timeout = '30s';
+SELECT * FROM large_table;
 ```
 
-### 结果集限制
+### Result Set Limit
+
+Limit result set size to prevent memory overflow:
+
+```sql
+SELECT * FROM orders LIMIT 1000;
+```
+
+## Configuration Options
+
+### Read-Only Mode
 
 ```bash
-# 最多返回 1000 行
+# Enable read-only mode
+postgres-mcp --read-only "postgresql://..."
+```
+
+### Query Timeout
+
+```bash
+# Set query timeout to 30 seconds
+postgres-mcp --query-timeout 30 "postgresql://..."
+```
+
+### Result Set Limit
+
+```bash
+# Return maximum 1000 rows
 postgres-mcp --max-rows 1000 "postgresql://..."
 ```
 
-## 注意事项
+## Notes
 
-1. **只读模式** — 生产环境建议使用只读模式，避免误操作
-2. **确认机制** — 写操作前必须向用户确认
-3. **事务使用** — 重要操作在事务中执行，出错可回滚
-4. **权限检查** — 确保数据库用户有足够权限
-5. **性能影响** — 大量数据操作可能影响数据库性能，选择合适时机
-6. **备份优先** — 重要操作前确保有备份
+1. **Read-only mode** — Production environments recommend using read-only mode to avoid mistakes
+2. **Confirmation mechanism** — Must confirm with user before write operations
+3. **Transaction usage** — Execute important operations in transactions, can rollback on error
+4. **Permission checks** — Ensure database user has sufficient permissions
+5. **Performance impact** — Large data operations may impact database performance, choose appropriate timing
+6. **Backup first** — Ensure backups exist before important operations
 
-## 相关命令
+## Related Commands
 
 ```sql
--- 查看当前事务状态
+-- View current transaction status
 SELECT * FROM pg_stat_activity WHERE pid = pg_backend_pid();
 
--- 查看锁信息
+-- View lock information
 SELECT * FROM pg_locks;
 
--- 查看长时间运行的查询
+-- View long-running queries
 SELECT pid, now() - query_start AS duration, query
 FROM pg_stat_activity
 WHERE state = 'active' AND now() - query_start > interval '1 minute';
 
--- 终止查询
-SELECT pg_cancel_backend(pid);  -- 温和终止
-SELECT pg_terminate_backend(pid);  -- 强制终止
+-- Terminate query
+SELECT pg_cancel_backend(pid);  -- Gentle termination
+SELECT pg_terminate_backend(pid);  -- Force termination
 ```

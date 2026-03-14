@@ -1,37 +1,37 @@
 ---
 name: pg-schema
 description: |
-  PostgreSQL 数据库模式查询和智能 SQL 生成工具。理解数据库结构，生成符合模式的 SQL 查询。
-  当用户询问表结构、字段信息、表关系、需要生成 SQL、查询数据库有哪些表时使用。
+  PostgreSQL database schema query and intelligent SQL generation tool. Understands database structure and generates SQL queries that conform to the schema.
+  Use when users ask about table structure, field information, table relationships, need to generate SQL, or query what tables exist in the database.
 ---
 
-## 功能说明
+## Feature Description
 
-pg-schema 提供数据库模式的智能查询和理解，帮助生成准确的 SQL 语句。
+pg-schema provides intelligent querying and understanding of database schemas, helping generate accurate SQL statements.
 
-## 执行流程
+## Execution Flow
 
-### 1. 前置检查
+### 1. Pre-check
 
-确认 postgres-mcp MCP 工具可用（参考根 SKILL.md 的前置检查）。
+Confirm postgres-mcp MCP tools are available (refer to pre-check in root SKILL.md).
 
-### 2. 模式查询
+### 2. Schema Query
 
-根据用户需求查询不同级别的模式信息。
+Query different levels of schema information based on user needs.
 
-#### 查询所有表
+#### Query All Tables
 
 ```sql
-SELECT schemaname, tablename 
-FROM pg_tables 
+SELECT schemaname, tablename
+FROM pg_tables
 WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
 ORDER BY schemaname, tablename;
 ```
 
-#### 查询表结构
+#### Query Table Structure
 
 ```sql
-SELECT 
+SELECT
   column_name,
   data_type,
   character_maximum_length,
@@ -42,16 +42,16 @@ WHERE table_name = 'orders'
 ORDER BY ordinal_position;
 ```
 
-#### 查询主键和外键
+#### Query Primary and Foreign Keys
 
 ```sql
--- 主键
+-- Primary keys
 SELECT a.attname
 FROM pg_index i
 JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
 WHERE i.indrelid = 'orders'::regclass AND i.indisprimary;
 
--- 外键
+-- Foreign keys
 SELECT
   tc.constraint_name,
   tc.table_name,
@@ -66,7 +66,7 @@ JOIN information_schema.constraint_column_usage AS ccu
 WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = 'orders';
 ```
 
-#### 查询索引
+#### Query Indexes
 
 ```sql
 SELECT
@@ -76,7 +76,7 @@ FROM pg_indexes
 WHERE tablename = 'orders';
 ```
 
-#### 查询表大小
+#### Query Table Size
 
 ```sql
 SELECT
@@ -85,258 +85,196 @@ SELECT
   pg_size_pretty(pg_total_relation_size('orders') - pg_relation_size('orders')) AS indexes_size;
 ```
 
-### 3. 构建模式上下文
+### 3. Understand Schema
 
-将查询到的模式信息整理成结构化的上下文：
+Based on schema information, build understanding of database structure:
 
-```
-📊 数据库模式
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#### Table Relationships
+- **One-to-many** — Foreign key relationships
+- **Many-to-many** — Through junction tables
+- **One-to-one** — Unique foreign keys
 
-表：orders
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-字段：
-  • id (bigint, PRIMARY KEY)
-  • user_id (bigint, NOT NULL)
-  • status (varchar(20), NOT NULL)
-  • total_amount (decimal(10,2))
-  • created_at (timestamp, DEFAULT now())
-  • updated_at (timestamp)
+#### Data Types
+- **Numeric types** — integer, bigint, numeric, real, etc.
+- **String types** — varchar, text, char, etc.
+- **Date/time types** — timestamp, date, time, interval, etc.
+- **Boolean type** — boolean
+- **JSON types** — json, jsonb
+- **Array types** — integer[], text[], etc.
 
-索引：
-  • orders_pkey (PRIMARY KEY on id)
-  • idx_orders_user_id (on user_id)
-  • idx_orders_status (on status)
+#### Constraints
+- **NOT NULL** — Field cannot be null
+- **UNIQUE** — Field value must be unique
+- **CHECK** — Custom validation rules
+- **DEFAULT** — Default values
 
-外键：
-  • fk_orders_user_id → users(id)
+### 4. Generate SQL
 
-大小：
-  • 表：1.2 GB
-  • 索引：450 MB
-  • 总计：1.65 GB
+Based on user intent and schema information, generate accurate SQL statements.
 
-表：users
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-字段：
-  • id (bigint, PRIMARY KEY)
-  • email (varchar(255), UNIQUE, NOT NULL)
-  • name (varchar(100))
-  • created_at (timestamp, DEFAULT now())
-
-索引：
-  • users_pkey (PRIMARY KEY on id)
-  • users_email_key (UNIQUE on email)
-```
-
-### 4. 智能 SQL 生成
-
-基于模式上下文，生成符合数据库结构的 SQL 查询。
-
-#### 示例 1：简单查询
+#### Simple Query
 
 ```
-用户：查询用户 123 的所有订单
-
-助手：[查询 orders 表结构]
-     [确认有 user_id 字段]
-     [生成 SQL]
-     
-SELECT * FROM orders WHERE user_id = 123;
+User: Query all pending orders
+Assistant: [Check orders table structure]
+         [Confirm status field exists]
+         SELECT * FROM orders WHERE status = 'pending';
 ```
 
-#### 示例 2：关联查询
+#### Join Query
 
 ```
-用户：查询每个用户的订单数量
-
-助手：[查询 users 和 orders 表结构]
-     [识别外键关系]
-     [生成 JOIN 查询]
-     
-SELECT 
-  u.id,
-  u.name,
-  COUNT(o.id) AS order_count
-FROM users u
-LEFT JOIN orders o ON u.id = o.user_id
-GROUP BY u.id, u.name;
+User: Query user names and their order amounts
+Assistant: [Check users and orders table relationships]
+         [Confirm foreign key relationship]
+         SELECT u.name, o.total_amount
+         FROM users u
+         JOIN orders o ON u.id = o.user_id;
 ```
 
-#### 示例 3：复杂查询
+#### Aggregate Query
 
 ```
-用户：查询最近 30 天内，每天的订单金额总和
-
-助手：[查询 orders 表结构]
-     [确认有 created_at 和 total_amount 字段]
-     [生成时间序列查询]
-     
-SELECT 
-  DATE(created_at) AS order_date,
-  SUM(total_amount) AS daily_total
-FROM orders
-WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
-GROUP BY DATE(created_at)
-ORDER BY order_date;
+User: Count orders per user
+Assistant: SELECT user_id, COUNT(*) as order_count
+         FROM orders
+         GROUP BY user_id;
 ```
 
-### 5. 验证和优化
-
-生成 SQL 后，进行验证和优化：
-
-#### 字段验证
-- 确认所有引用的字段都存在
-- 检查字段类型是否匹配
-- 验证 NULL 值处理
-
-#### 性能优化
-- 检查是否有合适的索引
-- 避免 SELECT *，只查询需要的字段
-- 考虑是否需要添加 LIMIT
-
-#### 安全检查
-- 使用参数化查询防止 SQL 注入
-- 检查权限要求
-- 避免危险操作（如无条件 DELETE）
-
-### 6. 提供解释
-
-生成 SQL 后，向用户解释：
+#### Complex Query
 
 ```
-生成的 SQL：
-SELECT u.name, COUNT(o.id) AS order_count
-FROM users u
-LEFT JOIN orders o ON u.id = o.user_id
-GROUP BY u.id, u.name;
-
-解释：
-• 从 users 表查询用户信息
-• LEFT JOIN orders 表获取订单（包括没有订单的用户）
-• 通过 user_id 关联两个表
-• GROUP BY 按用户分组
-• COUNT 统计每个用户的订单数量
-
-性能说明：
-• 使用了索引 idx_orders_user_id，性能良好
-• 预计扫描 10,000 用户和 50,000 订单
+User: Query users who placed orders in the last 30 days and their total order amounts
+Assistant: SELECT
+           u.id,
+           u.name,
+           COUNT(o.id) as order_count,
+           SUM(o.total_amount) as total_amount
+         FROM users u
+         JOIN orders o ON u.id = o.user_id
+         WHERE o.created_at > NOW() - INTERVAL '30 days'
+         GROUP BY u.id, u.name
+         ORDER BY total_amount DESC;
 ```
 
-## 高级功能
+### 5. Validate SQL
 
-### 模式变更建议
+Before executing generated SQL, validate:
 
-根据查询模式，建议模式改进：
+1. **Table existence** — Confirm all referenced tables exist
+2. **Field existence** — Confirm all referenced fields exist
+3. **Data type matching** — Confirm comparison operations match data types
+4. **Syntax correctness** — Confirm SQL syntax is correct
 
+### 6. Optimize SQL
+
+Optimize generated SQL:
+
+- **Avoid SELECT *** — Only query needed fields
+- **Use appropriate indexes** — Ensure WHERE conditions can use indexes
+- **Limit result set** — Add LIMIT for large result sets
+- **Use EXPLAIN** — Check execution plan to ensure performance
+
+## Usage Examples
+
+**Query table structure**:
 ```
-用户：经常需要按 email 查询用户
-
-助手：[检查 users 表]
-     发现 email 字段没有索引
-     建议：CREATE INDEX idx_users_email ON users(email);
-```
-
-### 数据类型建议
-
-```
-用户：status 字段总是固定的几个值
-
-助手：建议使用 ENUM 类型或 CHECK 约束：
-     
-     -- 方式 1：ENUM
-     CREATE TYPE order_status AS ENUM ('pending', 'paid', 'shipped', 'delivered');
-     ALTER TABLE orders ALTER COLUMN status TYPE order_status USING status::order_status;
-     
-     -- 方式 2：CHECK 约束
-     ALTER TABLE orders ADD CONSTRAINT check_status 
-     CHECK (status IN ('pending', 'paid', 'shipped', 'delivered'));
-```
-
-### 关系图生成
-
-生成表关系的文本描述或 Mermaid 图：
-
-```mermaid
-erDiagram
-    users ||--o{ orders : "has many"
-    users {
-        bigint id PK
-        varchar email UK
-        varchar name
-        timestamp created_at
-    }
-    orders {
-        bigint id PK
-        bigint user_id FK
-        varchar status
-        decimal total_amount
-        timestamp created_at
-    }
+User: What fields does the orders table have?
+Assistant: [Query orders table structure]
+         orders table has the following fields:
+         - id (bigint, primary key)
+         - user_id (bigint, foreign key to users)
+         - status (varchar)
+         - total_amount (numeric)
+         - created_at (timestamp)
 ```
 
-## 使用示例
-
-**查询表结构**：
+**Generate query SQL**:
 ```
-用户：orders 表有哪些字段？
-
-助手：[查询表结构]
-     orders 表包含以下字段：
-     • id (bigint, 主键)
-     • user_id (bigint, 外键 → users.id)
-     • status (varchar)
-     • total_amount (decimal)
-     • created_at (timestamp)
-     • updated_at (timestamp)
+User: Query all orders for user 123
+Assistant: [Check schema]
+         SELECT * FROM orders WHERE user_id = 123;
 ```
 
-**生成查询**：
+**Generate complex SQL**:
 ```
-用户：查询状态为 pending 的订单
-
-助手：[查询模式]
-     [生成 SQL]
-     SELECT * FROM orders WHERE status = 'pending';
-```
-
-**表关系查询**：
-```
-用户：orders 表和哪些表有关联？
-
-助手：[查询外键]
-     orders 表的关联关系：
-     • user_id → users.id (多对一)
+User: I want to see each user's order count and total amount, sorted by amount
+Assistant: [Analyze schema and relationships]
+         SELECT
+           u.id,
+           u.name,
+           COUNT(o.id) as order_count,
+           SUM(o.total_amount) as total_amount
+         FROM users u
+         LEFT JOIN orders o ON u.id = o.user_id
+         GROUP BY u.id, u.name
+         ORDER BY total_amount DESC NULLS LAST;
 ```
 
-## 注意事项
+## Advanced Features
 
-1. **模式缓存** — 模式信息可以缓存，避免重复查询
-2. **权限检查** — 确保用户有权限访问相关表和字段
-3. **大型数据库** — 对于有大量表的数据库，按需查询而不是一次性加载所有模式
-4. **模式变更** — 注意模式可能会变更，定期刷新缓存
-5. **命名规范** — 遵循数据库的命名规范（如 snake_case）
+### Schema Caching
 
-## 相关查询
+Cache frequently queried schema information to avoid repeated queries:
+
+```
+# First query: Get from database
+User: What fields does orders have?
+Assistant: [Query database] [Cache results]
+
+# Subsequent queries: Use cache
+User: Generate a query for orders
+Assistant: [Use cached schema] [Generate SQL]
+```
+
+### Intelligent Field Matching
+
+Fuzzy match user input to actual field names:
+
+```
+User: Query orders by creation time
+Assistant: [Match "creation time" to created_at field]
+         SELECT * FROM orders WHERE created_at > ?;
+```
+
+### Relationship Inference
+
+Automatically infer table relationships:
+
+```
+User: Query user names and order amounts
+Assistant: [Infer users.id = orders.user_id relationship]
+         [Generate JOIN query]
+```
+
+## Notes
+
+1. **Schema caching** — Schema information can be cached to avoid repeated queries
+2. **Permission checks** — Ensure user has permission to access relevant tables and fields
+3. **Large databases** — For databases with many tables, query on-demand rather than loading all schemas at once
+4. **Schema changes** — Note that schemas may change, refresh cache periodically
+5. **Naming conventions** — Follow database naming conventions (like snake_case)
+
+## Related Queries
 
 ```sql
--- 查询所有视图
-SELECT schemaname, viewname 
-FROM pg_views 
+-- Query all views
+SELECT schemaname, viewname
+FROM pg_views
 WHERE schemaname NOT IN ('pg_catalog', 'information_schema');
 
--- 查询所有函数
-SELECT proname, prosrc 
-FROM pg_proc 
+-- Query all functions
+SELECT proname, prosrc
+FROM pg_proc
 WHERE pronamespace = 'public'::regnamespace;
 
--- 查询所有触发器
-SELECT tgname, tgrelid::regclass, tgtype 
-FROM pg_trigger 
+-- Query all triggers
+SELECT tgname, tgrelid::regclass, tgtype
+FROM pg_trigger
 WHERE tgisinternal = false;
 
--- 查询表注释
-SELECT 
+-- Query table comments
+SELECT
   c.relname AS table_name,
   d.description
 FROM pg_class c

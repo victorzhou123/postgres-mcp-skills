@@ -1,62 +1,62 @@
 # postgres-mcp-skills
 
-基于 [postgres-mcp](https://github.com/crystaldba/postgres-mcp) 的 Agent Skills 集合，为 PostgreSQL 数据库提供完整的管理和优化能力。兼容 [Agent Skills 开放标准](https://agentskills.io)，支持 OpenClaw、Claude Code 等平台。
+Agent Skills collection based on [postgres-mcp](https://github.com/crystaldba/postgres-mcp), providing complete management and optimization capabilities for PostgreSQL databases. Compatible with [Agent Skills Open Standard](https://agentskills.io), supporting platforms like OpenClaw and Claude Code.
 
-## 功能
+## Features
 
-| Skill | 说明 |
+| Skill | Description |
 |---|---|
-| **setup-postgres-mcp** | 安装部署 postgres-mcp 服务 |
-| **pg-health** | 数据库健康检查（索引健康、连接利用率、缓存、vacuum、复制延迟等） |
-| **pg-index-tuning** | 索引优化建议和性能调优 |
-| **pg-query-plan** | 查询执行计划分析和优化 |
-| **pg-schema** | 数据库模式查询和智能 SQL 生成 |
-| **pg-execute** | 安全的 SQL 执行（支持只读模式和访问控制） |
+| **setup-postgres-mcp** | Install and deploy postgres-mcp service |
+| **pg-health** | Database health check (index health, connection utilization, cache, vacuum, replication lag, etc.) |
+| **pg-index-tuning** | Index optimization recommendations and performance tuning |
+| **pg-query-plan** | Query execution plan analysis and optimization |
+| **pg-schema** | Database schema query and intelligent SQL generation |
+| **pg-execute** | Safe SQL execution (supports read-only mode and access control) |
 
-## 前置条件
+## Prerequisites
 
-- 已安装并运行 [postgres-mcp](https://github.com/crystaldba/postgres-mcp) 服务
-- 如未安装，使用 `setup-postgres-mcp` skill 引导完成
+- [postgres-mcp](https://github.com/crystaldba/postgres-mcp) service installed and running
+- If not installed, use the `setup-postgres-mcp` skill for guided setup
 
-## 安装
+## Installation
 
 ### OpenClaw
 
-下载本项目到本地后，将 `SKILL.md` 文件和 `reference/` 目录复制到 OpenClaw 的 SKILLS 目录下重启会话生效。
+After downloading this project locally, copy the `SKILL.md` file and `reference/` directory to OpenClaw's SKILLS directory and restart the session.
 
 ### Claude Code
 
 ```bash
-# 项目级别
+# Project level
 cp SKILL.md .claude/skills/postgres.md
 cp -r reference/ .claude/skills/postgres-reference/
 
-# 或全局级别
+# Or global level
 cp SKILL.md ~/.claude/skills/postgres.md
 cp -r reference/ ~/.claude/skills/postgres-reference/
 ```
 
-使用 `/postgres` 调用，它会根据你的意图自动路由到相应的功能模块。
+Use `/postgres` to invoke, it will automatically route to the appropriate functional module based on your intent.
 
-## 使用示例
+## Usage Examples
 
 ```
-# 首次使用：安装 MCP 服务
+# First time use: Install MCP service
 /setup-postgres-mcp
 
-# 健康检查
+# Health check
 /pg-health
 
-# 索引优化
+# Index optimization
 /pg-index-tuning
 
-# 查询计划分析
+# Query plan analysis
 /pg-query-plan
 
-# 执行 SQL
+# Execute SQL
 /pg-execute
 ```
 
-## 许可证
+## License
 
 MIT

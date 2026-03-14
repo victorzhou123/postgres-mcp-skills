@@ -1,36 +1,36 @@
 ---
 name: pg-index-tuning
 description: |
-  PostgreSQL 索引优化工具。使用工业级算法探索数千种可能的索引组合，为工作负载找到最佳索引方案。
-  当用户提到慢查询、索引优化、性能调优、查询太慢、需要加索引时使用。
+  PostgreSQL index optimization tool. Uses industrial-grade algorithms to explore thousands of possible index combinations to find the best indexing solution for workloads.
+  Use when users mention slow queries, index optimization, performance tuning, queries too slow, or need to add indexes.
 ---
 
-## 功能说明
+## Feature Description
 
-pg-index-tuning 使用先进的索引优化算法，分析查询工作负载，推荐最优的索引方案。
+pg-index-tuning uses advanced index optimization algorithms to analyze query workloads and recommend optimal indexing solutions.
 
-## 执行流程
+## Execution Flow
 
-### 1. 前置检查
+### 1. Pre-check
 
-确认 postgres-mcp MCP 工具可用（参考根 SKILL.md 的前置检查）。
+Confirm postgres-mcp MCP tools are available (refer to pre-check in root SKILL.md).
 
-### 2. 收集工作负载
+### 2. Collect Workload
 
-有两种方式收集需要优化的查询：
+Two ways to collect queries that need optimization:
 
-#### 方式一：用户提供具体查询
+#### Method 1: User provides specific queries
 
-用户直接提供需要优化的 SQL 查询。
+User directly provides SQL queries that need optimization.
 
 ```
-用户：这个查询太慢了，帮我优化一下
+User: This query is too slow, help me optimize it
      SELECT * FROM orders WHERE user_id = 123 AND status = 'pending'
 ```
 
-#### 方式二：分析慢查询日志
+#### Method 2: Analyze slow query logs
 
-如果数据库启用了慢查询日志，可以从 `pg_stat_statements` 视图获取最慢的查询。
+If database has slow query logging enabled, can get slowest queries from `pg_stat_statements` view.
 
 ```sql
 SELECT query, calls, mean_exec_time, total_exec_time
@@ -39,164 +39,164 @@ ORDER BY mean_exec_time DESC
 LIMIT 10;
 ```
 
-### 3. 调用索引优化工具
+### 3. Call Index Optimization Tool
 
-使用 `suggest_indexes` 或类似的 MCP 工具分析查询并推荐索引。
+Use `suggest_indexes` or similar MCP tool to analyze queries and recommend indexes.
 
-传入参数：
-- **查询列表** — 需要优化的 SQL 查询
-- **工作负载权重** — 每个查询的执行频率（可选）
-- **约束条件** — 最大索引数量、最大索引大小等（可选）
+Input parameters:
+- **Query list** — SQL queries that need optimization
+- **Workload weights** — Execution frequency of each query (optional)
+- **Constraints** — Maximum number of indexes, maximum index size, etc. (optional)
 
-### 4. 分析推荐结果
+### 4. Analyze Recommendations
 
-索引优化工具会返回：
+Index optimization tool will return:
 
-#### 推荐的索引
-- **索引定义** — CREATE INDEX 语句
-- **预期收益** — 查询性能提升百分比
-- **索引大小** — 预估的磁盘空间占用
-- **影响的查询** — 哪些查询会使用这个索引
+#### Recommended Indexes
+- **Index definition** — CREATE INDEX statement
+- **Expected benefit** — Query performance improvement percentage
+- **Index size** — Estimated disk space usage
+- **Affected queries** — Which queries will use this index
 
-#### 优化前后对比
-- **当前性能** — 优化前的查询执行时间
-- **优化后性能** — 添加索引后的预期执行时间
-- **性能提升** — 提升的百分比
+#### Before/After Comparison
+- **Current performance** — Query execution time before optimization
+- **Optimized performance** — Expected execution time after adding index
+- **Performance improvement** — Improvement percentage
 
-#### 成本分析
-- **空间成本** — 所有推荐索引的总大小
-- **维护成本** — 索引对写操作的影响
-- **收益** — 查询性能的总体提升
+#### Cost Analysis
+- **Space cost** — Total size of all recommended indexes
+- **Maintenance cost** — Impact of indexes on write operations
+- **Benefit** — Overall query performance improvement
 
-### 5. 生成优化方案
+### 5. Generate Optimization Plan
 
-将推荐结果整理成清晰的优化方案：
+Organize recommendations into a clear optimization plan:
 
 ```
-🎯 索引优化方案
+🎯 Index Optimization Plan
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📊 当前问题：
-  • 查询 A：平均 2.5s，全表扫描 orders 表
-  • 查询 B：平均 1.8s，全表扫描 users 表
+📊 Current Issues:
+  • Query A: Average 2.5s, full table scan on orders table
+  • Query B: Average 1.8s, full table scan on users table
 
-💡 推荐索引：
+💡 Recommended Indexes:
 
-1. CREATE INDEX idx_orders_user_status 
+1. CREATE INDEX idx_orders_user_status
    ON orders(user_id, status);
-   
-   收益：查询 A 提速 95% (2.5s → 0.12s)
-   成本：约 150MB 磁盘空间
 
-2. CREATE INDEX idx_users_email 
+   Benefit: Query A speeds up 95% (2.5s → 0.12s)
+   Cost: ~150MB disk space
+
+2. CREATE INDEX idx_users_email
    ON users(email);
-   
-   收益：查询 B 提速 90% (1.8s → 0.18s)
-   成本：约 80MB 磁盘空间
 
-📈 总体效果：
-  • 查询性能提升：92%
-  • 磁盘空间占用：230MB
-  • 写操作影响：约 5% 性能下降
+   Benefit: Query B speeds up 90% (1.8s → 0.18s)
+   Cost: ~80MB disk space
+
+📈 Overall Effect:
+  • Query performance improvement: 92%
+  • Disk space usage: 230MB
+  • Write operation impact: ~5% performance decrease
 ```
 
-### 6. 执行确认
+### 6. Execution Confirmation
 
-在实际创建索引前，询问用户确认：
+Before actually creating indexes, ask user for confirmation:
 
-1. **展示完整的 CREATE INDEX 语句**
-2. **说明预期收益和成本**
-3. **提醒索引创建可能需要较长时间**（大表）
-4. **建议在低峰期执行**（生产环境）
+1. **Show complete CREATE INDEX statements**
+2. **Explain expected benefits and costs**
+3. **Remind that index creation may take considerable time** (large tables)
+4. **Recommend executing during off-peak hours** (production environment)
 
-用户确认后，可以：
-- 直接执行 CREATE INDEX（如果有权限）
-- 生成 SQL 脚本供用户手动执行
-- 使用 `CONCURRENTLY` 选项避免锁表（PostgreSQL 11+）
+After user confirmation, can:
+- Execute CREATE INDEX directly (if have permissions)
+- Generate SQL script for user to execute manually
+- Use `CONCURRENTLY` option to avoid table locking (PostgreSQL 11+)
 
-### 7. 验证效果
+### 7. Verify Results
 
-索引创建后，验证优化效果：
+After index creation, verify optimization results:
 
-1. **重新执行查询** — 对比优化前后的执行时间
-2. **检查索引使用** — 确认查询确实使用了新索引
-3. **监控性能** — 观察一段时间，确保没有副作用
+1. **Re-execute queries** — Compare execution time before and after optimization
+2. **Check index usage** — Confirm queries actually use new indexes
+3. **Monitor performance** — Observe for a period to ensure no side effects
 
-## 高级功能
+## Advanced Features
 
-### 假设索引（Hypothetical Indexes）
+### Hypothetical Indexes
 
-在不实际创建索引的情况下，模拟索引对查询计划的影响：
+Simulate index impact on query plans without actually creating indexes:
 
 ```sql
--- 创建假设索引
+-- Create hypothetical index
 SELECT * FROM hypopg_create_index('CREATE INDEX ON orders(user_id)');
 
--- 查看查询计划
+-- View query plan
 EXPLAIN SELECT * FROM orders WHERE user_id = 123;
 
--- 清理假设索引
+-- Clean up hypothetical indexes
 SELECT hypopg_reset();
 ```
 
-### 多查询优化
+### Multi-Query Optimization
 
-同时优化多个查询，找到最优的索引组合：
+Optimize multiple queries simultaneously to find optimal index combination:
 
 ```
-用户：优化这些查询
-     查询1：SELECT * FROM orders WHERE user_id = ?
-     查询2：SELECT * FROM orders WHERE status = ?
-     查询3：SELECT * FROM orders WHERE user_id = ? AND status = ?
-
-助手：分析发现，创建一个复合索引 (user_id, status) 
-     可以同时优化所有三个查询
+User: Optimize these queries
+     Query 1: SELECT * FROM orders WHERE user_id = ?
+     Query 2: SELECT * FROM orders WHERE status = ?
+     Query 3: SELECT * FROM orders WHERE user_id = ? AND status = ?
+Assistant: [Analyze queries]
+     Found that creating a composite index (user_id, status)
+     can optimize all three queries simultaneously
 ```
 
-### 索引维护建议
+### Index Maintenance Recommendations
 
-除了添加新索引，还可以：
+Besides adding new indexes, can also:
 
-- **删除未使用的索引** — 释放空间，减少写操作开销
-- **重建膨胀的索引** — REINDEX 恢复性能
-- **合并重复索引** — 删除功能重复的索引
+- **Remove unused indexes** — Free up space, reduce write operation overhead
+- **Rebuild bloated indexes** — REINDEX to restore performance
+- **Merge duplicate indexes** — Remove functionally redundant indexes
 
-## 使用示例
+## Usage Examples
 
-**单个查询优化**：
+**Single query optimization**:
 ```
-用户：这个查询太慢了
+User: This query is too slow
      SELECT * FROM orders WHERE user_id = 123 AND created_at > '2024-01-01'
      
-助手：[分析查询]
-     建议创建索引：
+Assistant: [Analyze query]
+     Recommend creating index:
      CREATE INDEX idx_orders_user_created 
      ON orders(user_id, created_at);
      
-     预期提速 90%，是否创建？
+     Expected 90% speedup, create it?
 ```
 
-**工作负载优化**：
+**Workload optimization**:
 ```
-用户：分析最近一周的慢查询，给出优化建议
+User: Analyze slow queries from the past week and provide optimization recommendations
 
-助手：[从 pg_stat_statements 获取慢查询]
-     [调用索引优化工具]
-     [生成综合优化方案]
+Assistant: [Get slow queries from pg_stat_statements]
+     [Call index optimization tool]
+     [Generate comprehensive optimization plan]
 ```
 
-## 注意事项
+## Notes
 
-1. **索引不是万能的** — 过多索引会影响写性能，需要权衡
-2. **复合索引顺序** — 索引列的顺序很重要，遵循"选择性高的列在前"原则
-3. **部分索引** — 对于有明显过滤条件的查询，考虑使用部分索引节省空间
-4. **表达式索引** — 对于函数调用（如 LOWER(email)），考虑表达式索引
-5. **CONCURRENTLY** — 生产环境创建索引时使用 CONCURRENTLY 避免锁表
-6. **监控效果** — 索引创建后持续监控，确保达到预期效果
+1. **Indexes are not a silver bullet** — Too many indexes affect write performance, need to balance
+2. **Composite index order** — Index column order matters, follow "high selectivity columns first" principle
+3. **Partial indexes** — For queries with obvious filter conditions, consider partial indexes to save space
+4. **Expression indexes** — For function calls (like LOWER(email)), consider expression indexes
+5. **CONCURRENTLY** — Use CONCURRENTLY when creating indexes in production to avoid table locking
+6. **Monitor results** — Continuously monitor after index creation to ensure expected results
 
-## 相关工具
+## Related Tools
 
-- **pg_stat_statements** — 查询统计扩展
-- **hypopg** — 假设索引扩展
-- **pg_qualstats** — 查询条件统计
-- **PoWA** — PostgreSQL 工作负载分析器
+- **pg_stat_statements** — Query statistics extension
+- **hypopg** — Hypothetical index extension
+- **pg_qualstats** — Query condition statistics
+- **PoWA** — PostgreSQL Workload Analyzer

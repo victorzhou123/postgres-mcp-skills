@@ -1,126 +1,126 @@
 ---
 name: pg-health
 description: |
-  PostgreSQL 数据库健康检查工具。分析索引健康、连接利用率、缓冲区缓存、vacuum 状态、序列限制、复制延迟等关键指标。
-  当用户询问数据库健康状态、性能监控、连接数、缓存命中率、需要优化建议时使用。
+  PostgreSQL database health check tool. Analyzes index health, connection utilization, buffer cache, vacuum status, sequence limits, replication lag, and other key metrics.
+  Use when users ask about database health status, performance monitoring, connection count, cache hit rate, or need optimization recommendations.
 ---
 
-## 功能说明
+## Feature Description
 
-pg-health 提供全面的数据库健康检查，帮助识别潜在的性能问题和优化机会。
+pg-health provides comprehensive database health checks to help identify potential performance issues and optimization opportunities.
 
-## 执行流程
+## Execution Flow
 
-### 1. 前置检查
+### 1. Pre-check
 
-确认 postgres-mcp MCP 工具可用（参考根 SKILL.md 的前置检查）。
+Confirm postgres-mcp MCP tools are available (refer to pre-check in root SKILL.md).
 
-### 2. 执行健康检查
+### 2. Execute Health Check
 
-调用 `get_database_health` 工具获取数据库健康报告。
+Call `get_database_health` tool to get database health report.
 
-### 3. 分析结果
+### 3. Analyze Results
 
-健康检查通常包含以下维度：
+Health checks typically include the following dimensions:
 
-#### 索引健康
-- **未使用的索引** — 占用空间但从未被查询使用的索引
-- **重复索引** — 功能重复的索引，可以合并
-- **缺失索引** — 频繁全表扫描的表可能需要添加索引
-- **索引膨胀** — 索引大小超过实际需要，需要 REINDEX
+#### Index Health
+- **Unused indexes** — Indexes that occupy space but are never used by queries
+- **Duplicate indexes** — Indexes with redundant functionality that can be merged
+- **Missing indexes** — Tables with frequent full table scans may need indexes
+- **Index bloat** — Index size exceeds actual needs, requires REINDEX
 
-#### 连接状态
-- **活跃连接数** — 当前正在执行查询的连接
-- **空闲连接数** — 空闲但未释放的连接
-- **连接池利用率** — 连接数占 max_connections 的比例
-- **长时间运行的查询** — 可能阻塞其他操作的慢查询
+#### Connection Status
+- **Active connections** — Connections currently executing queries
+- **Idle connections** — Idle but not released connections
+- **Connection pool utilization** — Connection count as percentage of max_connections
+- **Long-running queries** — Slow queries that may block other operations
 
-#### 缓冲区缓存
-- **缓存命中率** — shared_buffers 的命中率（应 > 95%）
-- **缓存大小** — 当前缓存配置是否合理
-- **脏页比例** — 需要写入磁盘的脏页数量
+#### Buffer Cache
+- **Cache hit rate** — shared_buffers hit rate (should be > 95%)
+- **Cache size** — Whether current cache configuration is reasonable
+- **Dirty page ratio** — Number of dirty pages that need to be written to disk
 
-#### Vacuum 状态
-- **自动 vacuum 状态** — 是否正常运行
-- **死元组数量** — 需要清理的过期数据
-- **表膨胀** — 表大小超过实际需要
-- **事务 ID 回卷风险** — 接近 wraparound 的表
+#### Vacuum Status
+- **Auto vacuum status** — Whether running normally
+- **Dead tuple count** — Expired data that needs cleanup
+- **Table bloat** — Table size exceeds actual needs
+- **Transaction ID wraparound risk** — Tables approaching wraparound
 
-#### 复制状态（如果配置了复制）
-- **复制延迟** — 主从之间的延迟时间
-- **复制槽状态** — 复制槽是否正常
-- **WAL 堆积** — WAL 日志是否堆积
+#### Replication Status (if replication is configured)
+- **Replication lag** — Lag time between primary and standby
+- **Replication slot status** — Whether replication slots are normal
+- **WAL accumulation** — Whether WAL logs are accumulating
 
-#### 序列状态
-- **序列使用率** — 接近上限的序列（可能导致插入失败）
+#### Sequence Status
+- **Sequence usage** — Sequences approaching limits (may cause insert failures)
 
-### 4. 生成报告
+### 4. Generate Report
 
-将健康检查结果整理成易读的报告，包括：
+Organize health check results into a readable report, including:
 
-1. **总体评分** — 数据库健康状况的总体评估
-2. **关键问题** — 需要立即处理的问题（红色警告）
-3. **优化建议** — 可以改进的地方（黄色提示）
-4. **正常指标** — 运行良好的部分（绿色）
+1. **Overall score** — Overall assessment of database health
+2. **Critical issues** — Issues requiring immediate attention (red warnings)
+3. **Optimization recommendations** — Areas that can be improved (yellow tips)
+4. **Normal metrics** — Parts running well (green)
 
-### 5. 提供建议
+### 5. Provide Recommendations
 
-根据发现的问题，提供具体的优化建议：
+Based on discovered issues, provide specific optimization recommendations:
 
-- **索引问题** → 建议删除未使用的索引、合并重复索引、添加缺失索引
-- **连接问题** → 建议调整连接池配置、关闭空闲连接、优化慢查询
-- **缓存问题** → 建议调整 shared_buffers 大小
-- **Vacuum 问题** → 建议手动 VACUUM、调整 autovacuum 参数
-- **复制问题** → 建议检查网络、优化复制配置
-- **序列问题** → 建议将序列类型从 integer 改为 bigint
+- **Index issues** → Recommend removing unused indexes, merging duplicate indexes, adding missing indexes
+- **Connection issues** → Recommend adjusting connection pool configuration, closing idle connections, optimizing slow queries
+- **Cache issues** → Recommend adjusting shared_buffers size
+- **Vacuum issues** → Recommend manual VACUUM, adjusting autovacuum parameters
+- **Replication issues** → Recommend checking network, optimizing replication configuration
+- **Sequence issues** → Recommend changing sequence type from integer to bigint
 
-## 使用示例
+## Usage Examples
 
-**基础健康检查**：
+**Basic health check**:
 ```
-用户：检查一下数据库健康状况
-助手：[调用 get_database_health]
-      [分析结果并生成报告]
-```
-
-**针对性检查**：
-```
-用户：为什么数据库连接数这么高？
-助手：[调用 get_database_health]
-      [重点分析连接状态部分]
+User: Check database health status
+Assistant: [Call get_database_health]
+          [Analyze results and generate report]
 ```
 
-**定期监控**：
+**Targeted check**:
 ```
-用户：每天早上 9 点检查数据库健康
-助手：[设置定时任务，每天执行健康检查]
+User: Why is the database connection count so high?
+Assistant: [Call get_database_health]
+          [Focus on analyzing connection status section]
 ```
 
-## 报告格式示例
+**Regular monitoring**:
+```
+User: Check database health every day at 9 AM
+Assistant: [Set up scheduled task to execute health check daily]
+```
+
+## Report Format Example
 
 ```
-📊 数据库健康报告
+📊 Database Health Report
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-✅ 总体状态：良好 (85/100)
+✅ Overall Status: Good (85/100)
 
-🔴 关键问题：
-  • 表 users 有 3 个未使用的索引，浪费 2.5GB 空间
-  • 连接数接近上限 (95/100)，可能导致新连接失败
+🔴 Critical Issues:
+  • Table users has 3 unused indexes, wasting 2.5GB space
+  • Connection count near limit (95/100), may cause new connection failures
 
-🟡 优化建议：
-  • 缓存命中率 92%，建议增加 shared_buffers
-  • 表 orders 需要 VACUUM，死元组占比 15%
+🟡 Optimization Recommendations:
+  • Cache hit rate 92%, recommend increasing shared_buffers
+  • Table orders needs VACUUM, dead tuple ratio 15%
 
-✅ 运行正常：
-  • 复制延迟 < 1s
-  • 无长时间运行的查询
-  • 序列使用率正常
+✅ Running Normally:
+  • Replication lag < 1s
+  • No long-running queries
+  • Sequence usage normal
 ```
 
-## 注意事项
+## Notes
 
-1. **权限要求** — 健康检查需要访问系统视图（pg_stat_*），确保数据库用户有足够权限
-2. **性能影响** — 健康检查本身会执行一些查询，在高负载时段谨慎使用
-3. **定期检查** — 建议定期（每天或每周）执行健康检查，及时发现问题
-4. **结合监控** — 健康检查是快照，建议配合持续监控工具（如 Prometheus + Grafana）
+1. **Permission requirements** — Health checks need access to system views (pg_stat_*), ensure database user has sufficient permissions
+2. **Performance impact** — Health checks execute some queries, use cautiously during high load periods
+3. **Regular checks** — Recommend executing health checks regularly (daily or weekly) to discover issues early
+4. **Combine with monitoring** — Health checks are snapshots, recommend combining with continuous monitoring tools (like Prometheus + Grafana)
